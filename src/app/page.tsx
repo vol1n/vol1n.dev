@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { MainLink } from "@/components/MainLink";
 import ParticleBackground from "@/components/BackgroundAnimation";
 

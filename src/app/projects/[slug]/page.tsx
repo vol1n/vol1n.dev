@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { allProjects, allPosts, Project, Post } from "contentlayer/generated";
+import { allProjects, allPosts } from "contentlayer/generated";
 import Image from "next/image";
 import Link from "next/link";
 import { MainLink } from "@/components/MainLink";
