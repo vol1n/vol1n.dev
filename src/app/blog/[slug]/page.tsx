@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 export const generateStaticParams = async () => 
-  allPosts.map((post) => ({ slug: post._raw.flattenedPath }));
+  allPosts.map((post) => ({ slug: post._raw.sourceFileName.split('.')[0] }));
 
 export const generateMetadata = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
