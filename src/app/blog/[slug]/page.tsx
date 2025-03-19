@@ -21,9 +21,6 @@ const PostLayout = async ({ params }: { params: Promise<{ slug: string }> }) => 
 
   return (
     <article className="relative mx-auto max-w-3xl py-8">
-      {/* Back Button */}
-      
-
       {/* Content Section */}
       <div className="bg-black/70 p-8 h-full rounded-lg shadow-lg backdrop-blur-md">
         <div className="absolute top-0 left-0 right-0 h-96 w-full overflow-hidden">
