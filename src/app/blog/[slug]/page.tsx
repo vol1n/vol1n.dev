@@ -9,14 +9,14 @@ export const generateStaticParams = async () =>
 
 export const generateMetadata = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
-  const post = allPosts.find((post) => post._raw.flattenedPath === slug);
+  const post = allPosts.find((p) => p._raw.sourceFileName.split('.')[0] === slug);
   if (!post) throw new Error(`Post not found for slug: ${slug}`);
   return { title: post.title };
 };
 
 const PostLayout = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
-  const post = allPosts.find((post) => post._raw.flattenedPath === slug);
+  const post = allPosts.find((p) => p._raw.sourceFileName.split('.')[0] === slug);
   if (!post) throw new Error(`Post not found for slug: ${slug}`);
 
   return (

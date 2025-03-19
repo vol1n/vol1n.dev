@@ -11,7 +11,7 @@ export const BlogPost = defineDocumentType(() => ({
     imageUrl: { type: 'string', required: true },
   },
   computedFields: {
-    url: { type: 'string', resolve: (post) => `/${post._raw.sourceFileName.split('.')[0]}` },
+    url: { type: 'string', resolve: (post) => `/${post._raw.flattenedPath}` },
   },
 }));
 
@@ -26,7 +26,7 @@ export const Project = defineDocumentType(() => ({
     liveUrl: { type: "string", required: false },
   },
   computedFields: {
-    url: { type: 'string', resolve: (project) => `/${project._raw.sourceFileName.split('.')[0]}` },
+    url: { type: 'string', resolve: (project) => `/${project._raw.flattenedPath}` },
   },
 }))
 
