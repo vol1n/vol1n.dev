@@ -7,17 +7,17 @@ import Link from "next/link";
 export const generateStaticParams = async () => 
   allPosts.map((post) => ({ slug: post._raw.flattenedPath }));
 
-export const generateMetadata = async ({ params }: { params: { slug: string } }) => {
+export const generateMetadata = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
   const post = allPosts.find((post) => post._raw.flattenedPath === slug);
-  if (!post) throw new Error(`Post not found for slug: ${params.slug}`);
+  if (!post) throw new Error(`Post not found for slug: ${slug}`);
   return { title: post.title };
 };
 
-const PostLayout = async ({ params }: { params: { slug: string } }) => {
+const PostLayout = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
   const post = allPosts.find((post) => post._raw.flattenedPath === slug);
-  if (!post) throw new Error(`Post not found for slug: ${params.slug}`);
+  if (!post) throw new Error(`Post not found for slug: ${slug}`);
 
   return (
     <article className="relative mx-auto max-w-3xl py-8">

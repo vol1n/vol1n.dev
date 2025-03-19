@@ -8,17 +8,17 @@ import { MainLink } from "@/components/MainLink";
 export const generateStaticParams = async () =>
   allProjects.map((project) => ({ slug: project._raw.sourceFileName }));
 
-export const generateMetadata = async ({ params }: { params: { slug: string } }) => {
+export const generateMetadata = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
   const project = allProjects.find((p) => p._raw.sourceFileName.split('.')[0] === slug);
-  if (!project) throw new Error(`Project not found for slug: ${params.slug}`);
+  if (!project) throw new Error(`Project not found for slug: ${slug}`);
   return { title: project.name };
 };
 
-const ProjectLayout = async ({ params }: { params: { slug: string } }) => {
+const ProjectLayout = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
   const project = allProjects.find((p) => p._raw.sourceFileName.split('.')[0] === slug);
-  if (!project) throw new Error(`Project not found for slug: ${params.slug}`);
+  if (!project) throw new Error(`Project not found for slug: ${slug}`);
 
   // Find all related blog posts that reference this project
   const relatedPosts = allPosts.filter((post) => post.projectId === slug);
