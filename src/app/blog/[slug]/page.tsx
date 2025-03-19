@@ -1,6 +1,7 @@
 import React from "react";
 import { format, parseISO } from "date-fns";
 import { allPosts } from "contentlayer/generated";
+import { useMDXComponent } from 'next-contentlayer2/hooks'
 import Image from "next/image";
 import Link from "next/link";
 
@@ -14,6 +15,11 @@ export const generateMetadata = async ({ params }: { params: Promise<{ slug: str
   return { title: post.title };
 };
 
+const MdxRenderer = ({ code }: { code: string | null }) => {
+  const MDXContent = code ? useMDXComponent(code) : () => <></>;
+  return <MDXContent />;
+};
+
 const PostLayout = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
   const post = allPosts.find((p) => p._raw.sourceFileName.split('.')[0] === slug);
@@ -23,16 +29,16 @@ const PostLayout = async ({ params }: { params: Promise<{ slug: string }> }) => 
     <article className="relative mx-auto max-w-3xl py-8">
       {/* Content Section */}
       <div className="bg-black/70 p-8 h-full rounded-lg shadow-lg backdrop-blur-md">
-        <div className="absolute top-0 left-0 right-0 h-96 w-full overflow-hidden">
+        <div className="absolute top-16 left-0 right-0 h-96 w-full overflow-hidden">
           <Image
             src={`${post.imageUrl}`}
             alt={post.title}
             fill
-            className="opacity-40"
+            className=""
           />
         </div>
         <Link href="/blog">
-          <span className="relative ml-4 mt-96 text-sm text-gray-400 hover:text-gray-200 transition">
+          <span className="z-10 relative ml-4 mt-96 text-sm text-gray-400 hover:text-gray-200 transition">
             ← Back
           </span>
         </Link>
@@ -44,9 +50,7 @@ const PostLayout = async ({ params }: { params: Promise<{ slug: string }> }) => 
         </div>
 
         {/* Blog Content */}
-        <div className="text-gray-300 [&>*]:mb-3 [&>*:last-child]:mb-0" 
-          dangerouslySetInnerHTML={{ __html: post.body.html }} 
-        />
+        <MdxRenderer code={post.body.code} />
       </div>
     </article>
   );

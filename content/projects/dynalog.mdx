@@ -1,0 +1,10 @@
+---
+id: dynalog
+name: Dynalog
+imageUrl: /images/serverless-datalog.png
+order: 1
+githubUrl: https://github.com/vol1n/dynalog
+---
+
+I built Dynalog after realizing that I needed a database for the serverless backend for my first Clojure project, <a href="/projects/workout-tracker" className="text-blue-400 hover:underline">Clojure Workout Tracker</a>. I was using Datomic for it previously, but Datomic needs a long-running transaction server, which is of course, not serverless. On top of that, in order to reduce cold start times, I needed to migrate my code to run on the SCI with babashka. However, Datomic is not babashka compatible due to its heavy use of reflection, and as a result I realized I would have to build the tool myself. 
+Dynalog is complete with a transaction and query API and uses DynamoDB with multiple GSIs as its fact store. It implements most of Datomic's syntax and features, such as pull queries. It is fairly quick and can be used for performant serverless applications. Using it, cold starts were reduced from over 10 seconds on the JVM to the ms range with Babashka and <a href="https://github.com/FieryCod/holy-lambda" className="text-blue-400 hover:underline">holy-lambda</a>.

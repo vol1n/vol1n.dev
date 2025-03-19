@@ -16,7 +16,7 @@ export function MainLink({ href, text }: { href: string; text: string }) {
   //   </Link>
   // );
   return (
-    <Link href={href} target="_blank" rel="noopener noreferrer">
+    <Link href={href} target="" rel="noopener noreferrer">
       <motion.div
         whileHover={{
           scale: 1.1, // Slightly enlarges the button

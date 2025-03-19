@@ -1,0 +1,227 @@
+---
+title: Building a Datalog Query Engine on top of DynamoDB
+date: 2025-03-19
+blurb: My experience building Dynalog, a datalog query engine for DynamoDB
+imageUrl: /images/the-challenge-of-datalog-querying.png
+projectId: dynalog
+---
+
+<span className="text-3xl font-bold text-white">Why?</span>
+
+Datomic gives you elegant, immutable data modeling. DynamoDB gives you serverless scale.
+But what if you want both? While deploying my <a href="/projects/workout-tracker" className="text-blue-400 hover:underline">Clojure Workout Tracker</a>, I needed a way to run Datalog queries in an ephemeral, pay-per-use environment. Dynalog is my attempt at getting near-parity with Datomic's functionality while utilizing DynamoDB as the fact store, enabling us to get the joy of Datalog querying serverlessly. This post is going to follow my journey of learning and exploration of Datalog, DynamoDB, and functional programming concepts like composition and immutability.
+
+<span className="text-2xl font-bold text-white">Why Datalog?</span>
+
+Queries in Datalog are ridiculously declarative and allow you to express complex queries in a simple and readable way. Let's compare a SQL query to find people who have a friend with the same age:
+```sql
+SELECT e.id, e.name
+FROM people e
+JOIN friendships f ON e.id = f.person_id
+JOIN people f2 ON f.friend_id = f2.id
+WHERE e.age = f2.age;
+```
+```clojure
+(d/q '[:find ?e ?name 
+       :where [?e :person/friend ?f]
+              [?e :person/age ?age]
+              [?f :person/age ?age]] db)
+``` 
+
+No joins, no subqueries, no complex logic. You just ask for what you want and the query engine handles the rest. Datalog is excellent for querying complex relationships within data, which are common in modern software. Let's look at another, more complicated query: 
+
+```sql
+WITH avg_ratings AS (
+    SELECT 
+        book_id, 
+        AVG(rating) AS avg_rating, 
+        COUNT(*) AS total_reviews
+    FROM reviews
+    GROUP BY book_id
+),
+filtered_books AS (
+    SELECT 
+        b.id, 
+        b.title, 
+        b.author_id, 
+        b.published_date, 
+        a.name AS author_name, 
+        ar.avg_rating, 
+        ar.total_reviews,
+        RANK() OVER (PARTITION BY b.author_id ORDER BY ar.avg_rating DESC) AS rank
+    FROM books b
+    JOIN authors a ON b.author_id = a.id
+    JOIN avg_ratings ar ON b.id = ar.book_id
+    WHERE ar.avg_rating > 4.0
+      AND b.published_date >= CURRENT_DATE - INTERVAL '5 years'
+)
+SELECT 
+    id, title, author_name, avg_rating, total_reviews, published_date
+FROM filtered_books
+WHERE rank <= 3
+ORDER BY author_name, avg_rating DESC;
+```
+
+```clojure
+(d/q '[:find ?book-title ?author-name ?avg-rating ?total-reviews ?pub-date
+       :with ?book
+       :where
+       ;; Retrieve book and author information
+       [?book :book/title ?book-title]
+       [?book :book/author ?author]
+       [?author :author/name ?author-name]
+       [?book :book/published-date ?pub-date]
+       ;; Only consider books published in the last 5 years
+       [(> ?pub-date (plus (now) (* -5 365 24 60 60 1000)))]
+       ;; Aggregate ratings
+       [?book :book/reviews ?review]
+       [?review :review/rating ?rating]
+       ;; Calculate average rating and total reviews
+       (agg/avg ?rating ?avg-rating)
+       (agg/count ?review ?total-reviews)
+       ;; Filter by rating > 4.0
+       [(> ?avg-rating 4.0)]]
+     db)
+```
+
+As you can see, as the relationships get more complicated, datalog's readability and elegance shine more and more.
+
+
+<span className="text-2xl font-bold text-white">Why DynamoDB?</span>
+
+DynamoDB's pay-per-use model aligns with my main reason for using serverless deployment, that being no cost while it isn't being used. This is useful for small-scale or demo apps like the aforementioned workout tracker I was building. DynamoDB is also blazingly fast and will be physically closer to my lambda deployments as they are both on AWS, so it is the obvious choice for a hosted NoSQL database.
+
+<span className="text-3xl font-bold text-white">Datalog Querying on a NoSQL fact store</span>
+
+Now we're getting into the real meat and potatoes - let's start with the basics.
+
+<span className="text-2xl font-bold text-white">How does Datomic work, exactly?</span>
+
+Because of how easy writing queries in Datomic is, you can build apps without ever digging deeper into how the underlying database works. This is where I was when I began this project. However, if I wanted to build a Datalog query engine, I needed to understand how Datomic works.
+Datomic uses what is called a triple store to store facts. A triple store stores 3-tuples of the form (entity, attribute, value) (referred to as EAV). An example fact in 3-tuple form would be (123, :person/name, "Colin") where the entity id is 123, and this fact says that the entity with id 123 has the attribute :person/name with the value "Colin". Sounds simple, right?
+Wrong! Datomic doesn't ACTUALLY store triples, while the entity ID, attribute keyword, and value are the most important components of the tuple, under the hood Datomic is storing other crucial attributes like the transaction ID and whether the fact has been retracted (deleted).
+
+<span className="text-2xl font-bold text-white">Why is DynamoDB different?</span>
+
+DynamoDB is a NoSQL database that stores data as JSON-like entries within partitioned tables. DynamoDB does not store triples, but instead stores data as user-defined key-value pairs. DynamoDB also does not support complex queries (think finding values where attribute = x and value = y), instead you must either scan the data (*super* slow and *super* expensive) or lookup data by an index. This is a real problem for us; scanning the entire table is not an option for a real application, and we need to mimic Datomic's query API which relies on being able to lookup values by attribute and value, or entity ID and attribute, and so on. At this point, I thought I might be cooked.
+
+<span className="text-2xl font-bold text-white">The Solution</span>
+
+I decided to use DynamoDB's Global Secondary Indexes (GSIs) liberally for efficient querying on E's, A's, and V's as needed.  While this comes with a pretty heavy hit to the wallet (if you're operating at scale, in which case you should probably host NoSQL on-prem instead of using DynamoDB anyway), it was the only way to accomplish my goals. Datalog querying, which we will get into the implementation of, requires lookups on all combinations of E, A, and V, so we needed to create GSIs for attribute-value, entity-attribute-value, entity-attribute, etc. I structured these as strings where the values for the given keys were joined by a '#' character. So let's say I'm inserting the triple from earlier, (123, :person/name, "Colin"). I would have a column in DynamoDB for attribute-value with the value ":person/name#Colin". I would also have a column for entity-attribute-value with the value "123#person/name#Colin", continuing as needed. This is a necessary workaround because GSIs only support lookups on scalar types (string, number, binary).
+
+<table>
+  <thead>
+    <tr>
+      <th>Index Type</th>
+      <th>Stored Key Format</th>
+      <th>Lookup Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Entity-Attribute (EA)</strong></td>
+      <td><code>"123#person/name"</code></td>
+      <td>Find all <code>:person/name</code> facts for entity <code>123</code></td>
+    </tr>
+    <tr>
+      <td><strong>Attribute-Value (AV)</strong></td>
+      <td><code>":person/name#Colin"</code></td>
+      <td>Find all entities with name <code>"Colin"</code></td>
+    </tr>
+    <tr>
+      <td><strong>Entity-Attribute-Value (EAV)</strong></td>
+      <td><code>"123#person/name#Colin"</code></td>
+      <td>Full fact lookup (useful for querying for existence)</td>
+    </tr>
+  </tbody>
+</table>
+
+<span className="text-3xl font-bold text-white">How to model queries?</span>
+
+This was the fun part. Building a query engine that was performant and simple, while also having the emergent properties of a Datalog query system was the hardest part of the project. 
+
+<span className="text-2xl font-bold text-white">What IS a constraint?</span>
+
+Let's say we have this dataset:
+
+<table>
+  <thead>
+    <tr>
+      <th>:person/id</th>
+      <th>:person/name</th>
+      <th>:person/age</th>
+      <th>:person/friend</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>"Alice"</td>
+      <td>30</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>"Bob"</td>
+      <td>25</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>"Charlie"</td>
+      <td>30</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>"Dave"</td>
+      <td>40</td>
+      <td>1</td>
+    </tr>
+  </tbody>
+</table>
+
+and this query:
+
+```clojure
+(d/q [:find ?name :where [?e :person/friend ?f] 
+                         [?e :person/age ?age]
+                         [?f :person/age ?age]
+                         [?e :person/name ?name]] db)
+```
+
+This query is asking for the names of people who have the same age as their friend. 
+My initial idea was to use sets for both the "contrained" variables (the first variable in a constraint) and the "bound" variables (the last variable in a constraint). 
+So, after processing the constraint [?e :person/age ?age] we would have ?e as ```#&#123;1 2 3 4&#125;``` and ?age as ```#&#123;30 25 40&#125;```. 
+Now, we have a problem: when we process the constraint [?f :person/age ?age], the behavior would be incorrect - because ?f is bound by [?e :person/friend ?f], this constraint should only give us the ?f where the ?e that is friends with this ?f also has the same age as this ?f. Using sets - we would get all ?f where ?f has the same age as SOME ?e, not its friend - in this case ?f as ```#&#123;1 2 3 4&#125;``` and ?age remains ```#&#123;30 25 40&#125;```. 
+After much thinking on this, I decided to use maps when a variable is bound, and sets when a variable is not bound but constrained. This is because the behavior that emerges from Datalog is that bound variables should retain the specific relationships that bound them previously, not just unrestricted set membership. This maintains the relationship of "when ?e is 3, ?age is 30". This can be expanded to "when ?e is 3, ?f is 1 and ?age is 30" - a direct representation of the relationship between variables, not just a set of values. 
+I decided to use maps for the keys of the variable bindings maps because it keeps it organized when a variable is bound by multiple variables, like ?age in this example. To highlight this, after running the above query, ?age should be reduced to 
+
+```
+`&#123;&#123;?e 3 ?f 1&#125; 30&#125;`
+```
+
+Meaning for the ?e with id 3 and the ?f with id 1 the value of ?age is 30. This is the only valid combination, so the query will just return ```["Charlie"]``` (the :person/name of the only valid ?e).
+
+<span className="text-2xl font-bold text-white">Constraints as pure functions</span>
+
+In essence, what is a constraint? Well, it is a function. Specifically, a function that takes the set of all possible values for a given variable and returns a subset of those that satisfy a given condition. Instead of treating the resolution as a set of imperative steps, I built pure functions for each constraint that further refined the possible values using a DynamoDB query or the cache. Then, as a variable had more constraints or bindings placed on it, those functions would be wrapped by the function for the new constraint. This was done by getting the output of the old function and the output of the new function, and combining them by "merging" the resolutions. 
+```clojure
+(defn new-binding [attribute bind-to current-resolver conn]
+  (fn [bindings]
+    (let [resolved-bind-to (if (symbol? bind-to) (get bindings bind-to) bind-to)
+          ; find the values that satisfy the new constraint
+          new-mapping (lookup bind-to attribute resolved-bind-to conn) 
+          ; find the values that satisfy the old constraint(s)
+          old (if current-resolver (current-resolver bindings) nil) 
+          ; merge 
+          merged (merge-constraints new-mapping old)] 
+      merged)))
+```
+
+For example, in the example query, ?age would first be resolved to a mapping of ?e -> ?age. Then, [?f :person/age ?age] would give us a mapping of ?f -> ?age, and then these maps would be merged. Merging two maps means finding the ```set/intersection``` of the values of the respective maps, throwing out values not in the intersection, and then merging the remaining map keys (```&#123;?e x&#125;```, ```&#123;?f y&#125;``` becomes ```&#123;?e x ?f y&#125;```). An intelligent approach to representing resolved values, the basic math of set intersection, and basic DynamoDB utility functions are brought together by pure function composition to give us a fully functional Datalog engine with the emergent properties one would expect. Clojure made this all possible in just a few hundred lines.
+
+<span className="text-3xl font-bold text-white">Conclusion</span>
+
+Building Dynalog wasn’t just about making a query engine—it was about proving that Datomic-like querying is possible in a fully serverless environment. What started as a curiosity about Datalog became a deep dive into query planning, index optimization, and functional composition, all in just a few hundred lines of Clojure.
+The most satisfying part? Once you set up the right rules, the Datalog properties just emerge—no imperative query planner, no hardcoded joins. Just pure composition doing its thing.
