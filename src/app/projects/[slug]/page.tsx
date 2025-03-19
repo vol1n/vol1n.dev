@@ -1,5 +1,4 @@
 import React from 'react';
-import { format, parseISO } from "date-fns";
 import { allProjects, allPosts } from "contentlayer/generated";
 import Image from "next/image";
 import Link from "next/link";
