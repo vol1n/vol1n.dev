@@ -16,10 +16,14 @@ export const generateMetadata = async ({ params }: { params: Promise<{ slug: str
   return { title: project.name };
 };
 
+const MdxRenderer = ({ code }: { code: string | null }) => {
+  const MDXContent = code ? useMDXComponent(code) : () => <></>;
+  return <MDXContent />;
+};
+
 const ProjectLayout = async ({ params }: { params: Promise<{ slug: string }> }) => {
   const { slug } = await params;
   const project = allProjects.find((p) => p._raw.sourceFileName.split('.')[0] === slug);
-  const MDXContent = project?.body.code ? useMDXComponent(project?.body.code) : () => <></>;
   if (!project) throw new Error(`Project not found for slug: ${slug}`);
 
   // Find all related blog posts that reference this project
@@ -59,8 +63,7 @@ const ProjectLayout = async ({ params }: { params: Promise<{ slug: string }> }) 
         </div>
       </div>
       
-      <MDXContent />
-
+      <MdxRenderer code={project.body.code}/>
       {/* Blog Posts Related to This Project */}
       {relatedPosts.length > 0 && 
         <div className="mt-12 gap-4 flex flex-col">
