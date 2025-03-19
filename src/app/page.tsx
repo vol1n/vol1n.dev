@@ -1,3 +1,4 @@
+import React from 'react';
 import { MainLink } from "@/components/MainLink";
 import ParticleBackground from "@/components/BackgroundAnimation";
 

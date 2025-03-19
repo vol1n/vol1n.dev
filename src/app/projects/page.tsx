@@ -1,3 +1,4 @@
+import React from 'react';
 import { allProjects, Project } from 'contentlayer/generated'
 import Link from 'next/link'
 import Image from 'next/image';

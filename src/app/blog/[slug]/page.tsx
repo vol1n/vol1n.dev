@@ -1,3 +1,4 @@
+import React from "react";
 import { format, parseISO } from "date-fns";
 import { allPosts } from "contentlayer/generated";
 import Image from "next/image";
