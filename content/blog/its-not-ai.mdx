@@ -1,0 +1,42 @@
+---
+title: It's not AI, It's the Stack
+date: 2025-03-24
+blurb: My opinions on AI in the short-term and the beauty of modern DX-focused tooling
+imageUrl: /images/the-stack.png
+projectId: demo-crm
+---
+
+<span className="text-3xl font-bold text-white">Something's Changing</span>
+
+Small teams are shipping faster than ever, and bigger, sometimes bloated teams are laying off / have laid off. Is it just "the economy"? "AI is taking software jobs?"
+Or is something else happening?
+
+To some extent, of course AI and macro forces will have some effect on the job market. After all, ChatGPT,
+Copilot, and even AI-first IDEs can generate simple code much faster, and they are getting better. However, we all know LLMs are prone to
+"hallucinations" and just general confusion, which are unacceptable for shipping production-grade code.
+AI is prone to writing code with <a href="https://arxiv.org/abs/2309.07814">subtle bugs</a> - code that LOOKS right, but with minor issues.
+This makes it hard for even experienced developers to catch on first-glance and these issues can slow down development
+and even get into production if engineers aren't careful. Further, unemployment is <a href="https://www.bls.gov/charts/employment-situation/civilian-unemployment-rate.htm">really low</a> (as of March 2025).
+
+So if the overall labor market is strong, and AI isn't ready to take our jobs - why don't we need as many engineers?
+
+<span className="text-3xl font-bold text-white">Team Size and Tooling</span>
+
+Disclaimer: Java (replace with your favorite OOP-heavy language) isn't a bad language. It's still a great tool, and
+even the best tool in many cases, especially for large-scale systems that benefit from a rich, decades-old, battle-tested ecosytem.
+
+<span className="text-xl font-bold text-white">2005-2015ish - Boilerplate Era</span>
+
+This was the heyday of Java and enterprise-y codebases. Layers like DAOs, Service classes, Controllers, DTOs, etc.
+were necessary for the tools of the time, and crucial for scalability. The cloud and the modern DevOps tools
+we now take for granted were either nonexistent of in their infancy. Deploying was an absolute nightmare.
+Roles in a team were always clear-cut: backend, frontend, DevOps, QA. 
+To avoid spaghetti code, and to follow the rules of OOP, layers had strict boundaries. Everything had to be swappable
+and the system should still function if one component was replaced.
+
+One team of engineers would often focus on one layer, and use interfaces and other boilerplate to create "contracts" between
+layers. This way, you only have to know your team's part of the stack. It took 10 engineers to ship.
+
+<span className="text-xl font-bold text-white">2015-2020</span>
+
+
