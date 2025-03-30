@@ -9,10 +9,6 @@ const nextConfig: NextConfig = {
         destination:
           "https://dimmin3f9flnh.cloudfront.net/clojure-workout-tracker/:path*",
       },
-      {
-        source: "/demo-crm/:path*",
-        destination: "https://demo-crm-chi.vercel.app/:path*",
-      },
     ];
   },
 };
